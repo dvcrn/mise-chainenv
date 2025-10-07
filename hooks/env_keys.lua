@@ -11,6 +11,11 @@ function PLUGIN:EnvKeys(ctx)
             table.insert(env_vars, { key = k, value = v })
         end
     end
+    local function add_env_any(k, v)
+        if k and v ~= nil then
+            table.insert(env_vars, { key = k, value = v })
+        end
+    end
 
     -- Detect chainenv binary once
     local function find_chainenv()
@@ -73,7 +78,10 @@ function PLUGIN:EnvKeys(ctx)
                             local out = ""
                             if chainenv_bin then
                                 local cmdline = chainenv_bin .. ((backend and backend ~= "") and (" --backend " .. backend) or "") .. " get " .. ce
-                                out = cmd.exec(cmdline) or ""
+                                local ok, res = pcall(function()
+                                    return cmd.exec(cmdline) or ""
+                                end)
+                                if ok and res then out = res end
                             else
                                 if not warned_missing then
                                     warned_missing = true
@@ -83,10 +91,10 @@ function PLUGIN:EnvKeys(ctx)
                                 end
                             end
                             out = out:gsub("%s+$", ""):gsub("^%s+", "")
+                            -- Always export helper so templates don't fail if secret is missing
+                            add_env_any("CHAINENV_" .. name, out)
                             if out ~= "" then
-                                -- Export both the target var and a namespaced helper
                                 add_env(name, out)
-                                add_env("CHAINENV_" .. name, out)
                             end
                         end
                     end
@@ -120,7 +128,10 @@ function PLUGIN:EnvKeys(ctx)
                         local out = ""
                         if chainenv_bin then
                             local cmdline = chainenv_bin .. ((backend and backend ~= "") and (" --backend " .. backend) or "") .. " get " .. ce
-                            out = cmd.exec(cmdline) or ""
+                            local ok, res = pcall(function()
+                                return cmd.exec(cmdline) or ""
+                            end)
+                            if ok and res then out = res end
                         else
                             if not warned_missing then
                                 warned_missing = true
@@ -130,9 +141,10 @@ function PLUGIN:EnvKeys(ctx)
                             end
                         end
                         out = out:gsub("%s+$", ""):gsub("^%s+", "")
+                        -- Always export helper for template resolution
+                        add_env_any("CHAINENV_" .. name, out)
                         if out ~= "" then
                             add_env(name, out)
-                            add_env("CHAINENV_" .. name, out)
                         end
                     end
                 end
