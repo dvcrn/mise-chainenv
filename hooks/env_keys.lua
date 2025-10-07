@@ -70,10 +70,25 @@ function PLUGIN:EnvKeys(ctx)
                     if name and tableBody then
                         local ce = tableBody:match('chainenv%s*=%s*"([^"]+)"')
                             or tableBody:match("chainenv%s*=%s*'([^']+)'")
-                        if not ce or ce == "" then ce = name end
+                        -- detect template value to infer helper var like CHAINENV_<X>
+                        local val = tableBody:match('value%s*=%s*"([^"]*)"') or tableBody:match("value%s*=%s*'([^']*)'")
+                        local helper_from_value = nil
+                        local template_target_env = nil
+                        if val then
+                            local hv = val:match("{{%s*env%.([A-Za-z_][A-Za-z0-9_]*)%s*}}")
+                            if hv and hv ~= "" then
+                                helper_from_value = hv
+                                local t = hv:match("^CHAINENV_([A-Za-z_][A-Za-z0-9_]*)$")
+                                if t then template_target_env = t end
+                            end
+                        end
+                        if not ce or ce == "" then
+                            ce = template_target_env or name
+                        end
                         local backend = tableBody:match('chainenv_backend%s*=%s*"([^"]+)"')
                             or tableBody:match("chainenv_backend%s*=%s*'([^']+)'")
                         if not backend or backend == "" then backend = default_backend end
+                        -- 'ce' already defaults to template_target_env if present
                         if ce and ce ~= "" then
                             local out = ""
                             if chainenv_bin then
@@ -93,6 +108,9 @@ function PLUGIN:EnvKeys(ctx)
                             out = out:gsub("%s+$", ""):gsub("^%s+", "")
                             -- Always export helper so templates don't fail if secret is missing
                             add_env_any("CHAINENV_" .. name, out)
+                            if helper_from_value and helper_from_value ~= ("CHAINENV_" .. name) then
+                                add_env_any(helper_from_value, out)
+                            end
                             if out ~= "" then
                                 add_env(name, out)
                             end
